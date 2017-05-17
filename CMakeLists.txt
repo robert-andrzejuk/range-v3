@@ -60,7 +60,7 @@ if("x${CMAKE_CXX_COMPILER_ID}" MATCHES "x.*Clang")
     if(NOT RANGES_LIBCXX_MODULE)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fmodules -fmodule-map-file=${PROJECT_SOURCE_DIR}/include/module.modulemap -fmodules-cache-path=${PROJECT_BINARY_DIR}/module.cache")
     else()
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fmodules -fmodule-map-file=${PROJECT_SOURCE_DIR}/include/module.modulemap -fmodules-cache-path=${PROJECT_BINARY_DIR}/module.cache -fno-implicit-module-maps -fmodule-map-file=${RANGES_LIBCXX_MODULE}") 
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fmodules -fmodule-map-file=${PROJECT_SOURCE_DIR}/include/module.modulemap -fmodules-cache-path=${PROJECT_BINARY_DIR}/module.cache -fno-implicit-module-maps -fmodule-map-file=${RANGES_LIBCXX_MODULE}")
     endif()
   endif()
   set(CMAKE_CXX_FLAGS_DEBUG "-O0 -fno-inline -g3 -fstack-protector-all")
@@ -68,8 +68,13 @@ if("x${CMAKE_CXX_COMPILER_ID}" MATCHES "x.*Clang")
 elseif(CMAKE_COMPILER_IS_GNUCXX)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++${RANGES_CXX_STD} -ftemplate-backtrace-limit=0")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -Werror -pedantic-errors")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "5.0")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-missing-field-initializers")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "6.0")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-strict-overflow")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "5.0")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-missing-field-initializers")
+    endif()
+  elseif((CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "7.0") OR (CMAKE_CXX_COMPILER_VERSION VERSION_EQUAL "7.0"))
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-noexcept-type")
   endif()
   set(CMAKE_CXX_FLAGS_DEBUG "-O0 -fno-inline -g3 -fstack-protector-all")
   set(CMAKE_CXX_FLAGS_RELEASE "-Ofast -g0 -DNDEBUG")
@@ -84,11 +89,16 @@ range_v3_append_flag(RANGE_V3_HAS_MTUNE_NATIVE "-mtune=native")
 file(GLOB_RECURSE RANGE_V3_PUBLIC_HEADERS
                   RELATIVE "${CMAKE_SOURCE_DIR}/include"
                   "${CMAKE_SOURCE_DIR}/include/*.hpp")
+
+# Add header files as sources to fix MSVS 2017 not finding source during debugging
+file(GLOB_RECURSE RANGE_V3_PUBLIC_HEADERS_ABSOLUTE
+                  "${CMAKE_SOURCE_DIR}/include/*.hpp")
+
 include(TestHeaders)
 if(RANGE_V3_NO_HEADER_CHECK)
-  add_custom_target(headers)
+  add_custom_target(headers SOURCES ${RANGE_V3_PUBLIC_HEADERS_ABSOLUTE})
 else()
-  add_custom_target(headers ALL)
+  add_custom_target(headers ALL SOURCES ${RANGE_V3_PUBLIC_HEADERS_ABSOLUTE})
 endif()
 generate_standalone_header_tests(EXCLUDE_FROM_ALL MASTER_TARGET headers HEADERS ${RANGE_V3_PUBLIC_HEADERS})
 
@@ -117,6 +127,8 @@ if(NOT RANGE_V3_NEW_VERSION_HPP STREQUAL RANGE_V3_OLD_VERSION_HPP)
     COPY ${CMAKE_CURRENT_BINARY_DIR}/include/range/v3/version.hpp
     DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/include/range/v3
   )
+  # Update the conanfile, too
+  configure_file(conanfile.py.in ${CMAKE_CURRENT_SOURCE_DIR}/conanfile.py @ONLY)
   execute_process(
     COMMAND ${GIT_EXECUTABLE} -C "${CMAKE_CURRENT_SOURCE_DIR}" add -u
   )
@@ -126,6 +138,18 @@ if(NOT RANGE_V3_NEW_VERSION_HPP STREQUAL RANGE_V3_OLD_VERSION_HPP)
   execute_process(
     COMMAND ${GIT_EXECUTABLE} -C "${CMAKE_CURRENT_SOURCE_DIR}" tag -f -a "${RANGE_V3_VERSION}" -m "${RANGE_V3_VERSION}"
   )
+  find_program(CONAN_EXECUTABLE NAMES conan conan.exe)
+  if (NOT "x${CONAN_EXECUTABLE}" STREQUAL "xCONAN_EXECUTABLE-NOTFOUND")
+    message("Exporting conanfile for new version")
+    execute_process(
+      COMMAND ${CONAN_EXECUTABLE} export ericniebler/stable
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+  endif()
+  message("Version updated to @{RANGE_V3_VERSION}. Don't forget to:")
+  message("  git push origin <feature-branch>")
+  message("and (after that is merged to master) then:")
+  message("  conan upload range-v3/${RANGE_V3_VERSION}@ericniebler/stable")
 endif()
 
 add_subdirectory(doc)

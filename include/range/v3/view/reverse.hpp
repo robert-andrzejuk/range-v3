@@ -143,9 +143,12 @@ namespace ranges
             {
                 return ranges::size(this->base());
             }
-            // SizedRange == false, RandomAccessRange == true
+            // SizedRange == false, SizedSentinel == true
             range_size_type_t<Rng> size_(std::false_type)
             {
+                // NB: This may trigger the O(N) walk over the sequence to find
+                // last iterator. That cost is amortized over all calls to size()
+                // and end, so we'll squint and call it "amortized O(1)."
                 return ranges::iter_size(this->begin(), this->end());
             }
         public:
@@ -153,7 +156,8 @@ namespace ranges
             explicit reverse_view(Rng rng)
               : reverse_view::view_adaptor{std::move(rng)}
             {}
-            CONCEPT_REQUIRES(SizedRange<Rng>() || RandomAccessRange<Rng>())
+            CONCEPT_REQUIRES(SizedRange<Rng>() ||
+                SizedSentinel<iterator_t<Rng>, iterator_t<Rng>>())
             range_size_type_t<Rng> size()
             {
                 return this->size_(SizedRange<Rng>());
@@ -175,7 +179,7 @@ namespace ranges
                 template<typename Rng, CONCEPT_REQUIRES_(Concept<Rng>())>
                 reverse_view<all_t<Rng>> operator()(Rng && rng) const
                 {
-                    return reverse_view<all_t<Rng>>{all(std::forward<Rng>(rng))};
+                    return reverse_view<all_t<Rng>>{all(static_cast<Rng&&>(rng))};
                 }
             #ifndef RANGES_DOXYGEN_INVOKED
                 // For error reporting

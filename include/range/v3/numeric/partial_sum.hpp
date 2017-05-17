@@ -23,6 +23,7 @@
 #include <range/v3/utility/iterator_traits.hpp>
 #include <range/v3/utility/iterator_concepts.hpp>
 #include <range/v3/utility/static_const.hpp>
+#include <range/v3/utility/unreachable.hpp>
 
 namespace ranges
 {
@@ -42,30 +43,6 @@ namespace ranges
 
         struct partial_sum_fn
         {
-            template<typename I, typename S, typename O, typename BOp = plus,
-                typename P = ident,
-                CONCEPT_REQUIRES_(Sentinel<S, I>() && PartialSummable<I, O, BOp, P>())>
-            tagged_pair<tag::in(I), tag::out(O)>
-            operator()(I begin, S end, O result, BOp bop = BOp{}, P proj = P{}) const
-            {
-                using V = value_type_t<I>;
-                using X = concepts::Invocable::result_t<P&, V>;
-                coerce<V> v;
-                coerce<X> x;
-
-                if(begin != end)
-                {
-                    auto t(x(invoke(proj, v(*begin))));
-                    *result = t;
-                    for(++begin, ++result; begin != end; ++begin, ++result)
-                    {
-                        t = invoke(bop, t, invoke(proj, *begin));
-                        *result = t;
-                    }
-                }
-                return {begin, result};
-            }
-
             template<typename I, typename S, typename O, typename S2,
                 typename BOp = plus, typename P = ident,
                 CONCEPT_REQUIRES_(Sentinel<S, I>() && Sentinel<S2, O>() &&
@@ -92,6 +69,16 @@ namespace ranges
                 return {begin, result};
             }
 
+            template<typename I, typename S, typename O, typename BOp = plus,
+                typename P = ident,
+                CONCEPT_REQUIRES_(Sentinel<S, I>() && PartialSummable<I, O, BOp, P>())>
+            tagged_pair<tag::in(I), tag::out(O)>
+            operator()(I begin, S end, O result, BOp bop = BOp{}, P proj = P{}) const
+            {
+                return (*this)(std::move(begin), std::move(end), std::move(result), 
+                               unreachable{}, std::move(bop), std::move(proj));
+            }
+
             template<typename Rng, typename ORef, typename BOp = plus,
                 typename P = ident, typename I = iterator_t<Rng>,
                 typename O = uncvref_t<ORef>,
@@ -99,7 +86,7 @@ namespace ranges
             tagged_pair<tag::in(safe_iterator_t<Rng>), tag::out(O)>
             operator()(Rng && rng, ORef && result, BOp bop = BOp{}, P proj = P{}) const
             {
-                return (*this)(begin(rng), end(rng), std::forward<ORef>(result),
+                return (*this)(begin(rng), end(rng), static_cast<ORef&&>(result),
                                std::move(bop), std::move(proj));
             }
 

@@ -39,19 +39,8 @@ namespace ranges
         /// \cond
         namespace detail
         {
-            // Dereference the iterator and coerce the return type
-            template<typename Reference>
-            struct deref_fun
-            {
-                template<typename I>
-                Reference operator()(I const &it) const
-                {
-                    return *it;
-                }
-            };
-
             template<typename State, typename Value>
-            using concat_cardinality =
+            using concat_cardinality_ =
                 std::integral_constant<cardinality,
                     State::value == infinite || Value::value == infinite ?
                         infinite :
@@ -60,6 +49,12 @@ namespace ranges
                             State::value == finite || Value::value == finite ?
                                 finite :
                                 static_cast<cardinality>(State::value + Value::value)>;
+
+            template<typename... Rngs>
+            using concat_cardinality = meta::fold<
+                meta::list<range_cardinality<Rngs>...>,
+                std::integral_constant<cardinality, static_cast<cardinality>(0)>,
+                meta::quote<concat_cardinality_>>;
         }
         /// \endcond
 
@@ -68,10 +63,7 @@ namespace ranges
         template<typename...Rngs>
         struct concat_view
           : view_facade<concat_view<Rngs...>,
-                meta::fold<
-                    meta::list<range_cardinality<Rngs>...>,
-                    std::integral_constant<cardinality, static_cast<cardinality>(0)>,
-                    meta::quote<detail::concat_cardinality>>::value>
+                detail::concat_cardinality<Rngs...>::value>
         {
         private:
             friend range_access;
@@ -254,7 +246,8 @@ namespace ranges
                 reference read() const
                 {
                     // Kind of a dumb implementation. Surely there's a better way.
-                    return ranges::get<0>(unique_variant(its_.visit(detail::deref_fun<reference>{})));
+                    return ranges::get<0>(unique_variant(its_.visit(
+                        compose(convert_to<reference>{}, dereference_fn{}))));
                 }
                 void next()
                 {
@@ -317,12 +310,22 @@ namespace ranges
             explicit concat_view(Rngs...rngs)
               : rngs_{std::move(rngs)...}
             {}
-            CONCEPT_REQUIRES(meta::and_c<(bool)SizedRange<Rngs>()...>::value)
+            CONCEPT_REQUIRES(detail::concat_cardinality<Rngs...>::value >= 0)
             constexpr size_type_ size() const
             {
-                return range_cardinality<concat_view>::value >= 0 ?
-                    (size_type_)range_cardinality<concat_view>::value :
-                    tuple_foldl(tuple_transform(rngs_, ranges::size), size_type_{0}, plus{});
+                return static_cast<size_type_>(detail::concat_cardinality<Rngs...>::value);
+            }
+            CONCEPT_REQUIRES(detail::concat_cardinality<Rngs...>::value < 0 &&
+                meta::and_c<(bool)SizedRange<Rngs const>()...>::value)
+            RANGES_CXX14_CONSTEXPR size_type_ size() const
+            {
+                return const_cast<concat_view *>(this)->size();
+            }
+            CONCEPT_REQUIRES(detail::concat_cardinality<Rngs...>::value < 0 &&
+                meta::and_c<(bool)SizedRange<Rngs>()...>::value)
+            RANGES_CXX14_CONSTEXPR size_type_ size()
+            {
+                return tuple_foldl(tuple_transform(rngs_, ranges::size), size_type_{0}, plus{});
             }
         };
 
@@ -335,7 +338,7 @@ namespace ranges
                 {
                     static_assert(meta::and_c<(bool)InputRange<Rngs>()...>::value,
                         "Expecting Input Ranges");
-                    return concat_view<all_t<Rngs>...>{all(std::forward<Rngs>(rngs))...};
+                    return concat_view<all_t<Rngs>...>{all(static_cast<Rngs&&>(rngs))...};
                 }
             };
 

@@ -52,7 +52,7 @@ namespace ranges
                     static auto bind(Ts &&...ts)
                     RANGES_DECLTYPE_AUTO_RETURN
                     (
-                        V::bind(std::forward<Ts>(ts)...)
+                        V::bind(static_cast<Ts&&>(ts)...)
                     )
                 };
             };
@@ -91,8 +91,9 @@ namespace ranges
                 static auto pipe(Rng && rng, Vw && v)
                 RANGES_DECLTYPE_AUTO_RETURN
                 (
-                    v.view_(std::forward<Rng>(rng))
+                    v.view_(static_cast<Rng&&>(rng))
                 )
+
             #ifndef RANGES_DOXYGEN_INVOKED
                 // For better error messages:
                 template<typename Rng, typename Vw,
@@ -110,26 +111,29 @@ namespace ranges
                         "a named variable, and then pipe it to the view.");
                 }
             #endif
+
             public:
                 view() = default;
                 view(View a)
                   : view_(std::move(a))
                 {}
+
                 // Calling directly requires View arguments or lvalue containers.
                 template<typename Rng, typename...Rest,
                     CONCEPT_REQUIRES_(ViewConcept<Rng, Rest...>())>
                 auto operator()(Rng && rng, Rest &&... rest) const
                 RANGES_DECLTYPE_AUTO_RETURN
                 (
-                    view_(std::forward<Rng>(rng), std::forward<Rest>(rest)...)
+                    view_(static_cast<Rng&&>(rng), static_cast<Rest&&>(rest)...)
                 )
+
                 // Currying overload.
                 template<typename...Ts, typename V = View>
                 auto operator()(Ts &&... ts) const
                 RANGES_DECLTYPE_AUTO_RETURN
                 (
                     make_view(view_access::impl<V>::bind(view_,
-                        std::forward<Ts>(ts)...))
+                        static_cast<Ts&&>(ts)...))
                 )
             };
             /// \endcond

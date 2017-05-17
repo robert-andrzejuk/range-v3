@@ -38,8 +38,8 @@ Most of the source code in this project are mine, and those are under the Boost 
 --------------------------------------------
 The code is known to work on the following compilers:
 
-- clang 3.5.2
-- GCC 4.9.4
+- clang 3.6.2
+- GCC 4.9.1
 
 \section tutorial-quick-start Quick Start
 
@@ -293,6 +293,8 @@ Below is a list of the lazy range combinators, or *views*, that Range v3 provide
   <DD>Type-erased range of elements with value type `T`; can store _any_ range with this value type.</DD>
 <DT>\link ranges::v3::view::bounded_fn `view::bounded`\endlink</DT>
   <DD>Convert the source range to a *bounded* range, where the type of the `end` is the same as the `begin`. Useful for iterating over a range with C++'s range-based `for` loop.</DD>
+<DT>\link ranges::v3::view::cartesian_product_fn `view::cartesian_product`\endlink</DT>
+  <DD>Enumerates the n-ary cartesian product of `n` ranges, i.e., generates all `n`-tuples `(e1, e2, ... , en)` where `e1` is an element of the first range, `e2` is an element of the second range, etc.</DD>
 <DT>\link ranges::v3::view::chunk_fn `view::chunk`\endlink</DT>
   <DD>Given a source range and an integer *N*, produce a range of contiguous ranges where each inner range has *N* contiguous elements. The final range may have fewer than *N* elements.</DD>
 <DT>\link ranges::v3::view::concat_fn `view::concat`\endlink</DT>
@@ -337,6 +339,8 @@ Below is a list of the lazy range combinators, or *views*, that Range v3 provide
   <DD>Given a range of ranges, join them into a flattened sequence of elements. Optionally, you can specify a value or a range to be inserted between each source range.</DD>
 <DT>\link ranges::v3::view::keys_fn `view::keys`\endlink</DT>
   <DD>Given a range of `pair`s (like a `std::map`), return a new range consisting of just the first element of the `pair`.</DD>
+<DT>\link ranges::v3::view::linear_distribute_fn `view::linear_distribute`\endlink</DT>
+  <DD>Distributes `n` values linearly in the closed interval `[from, to]` (the end points are always included). If `from == to`, returns `n`-times `to`, and if `n == 1` it returns `to`.</DD>
 <DT>\link ranges::v3::view::move_fn `view::move`\endlink</DT>
   <DD>Given a source range, return a new range where each element has been has been cast to an rvalue reference.</DD>
 <DT>\link ranges::v3::view::partial_sum_fn `view::partial_sum`\endlink</DT>
@@ -359,6 +363,8 @@ Below is a list of the lazy range combinators, or *views*, that Range v3 provide
   <DD>Given a value, create a range with exactly one element.</DD>
 <DT>\link ranges::v3::view::slice_fn `view::slice`\endlink</DT>
   <DD>Give a source range a lower bound (inclusive) and an upper bound (exclusive), create a new range that begins and ends at the specified offsets. Both the begin and the end can be integers relative to the front, or relative to the end with "`end-2`" syntax.</DD>
+<DT>\link ranges::v3::view::sliding_fn `view::sliding`\endlink</DT>
+  <DD>Given a range and a count `n`, place a window over the first `n` elements of the underlying range. Return the contents of that window as the first element of the adapted range, then slide the window forward one element at a time until hitting the end of the underlying range.</DD>
 <DT>\link ranges::v3::view::split_fn `view::split`\endlink</DT>
   <DD>Given a source range and a delimiter specifier, split the source range into a range of ranges using the delimiter specifier to find the boundaries. The delimiter specifier can be a value, a subrange, a predicate, or a function. The predicate should take an single argument of the range's reference type and return true if and only if the element is part of a delimiter. The function should accept current/end iterators into the source range and return `make_pair(true, iterator_past_the_delimiter)` if the current position is a boundary; otherwise, `make_pair(false, cur)`. The delimiter character(s) are excluded from the resulting range of ranges.</DD>
 <DT>\link ranges::v3::view::stride_fn `view::stride`\endlink</DT>
@@ -385,4 +391,49 @@ Below is a list of the lazy range combinators, or *views*, that Range v3 provide
   <DD>Given *N* ranges, return a new range where *M*<SUP>th</SUP> element is the result of calling `make_tuple` on the *M*<SUP>th</SUP> elements of all *N* ranges.</DD>
 <DT>\link ranges::v3::view::zip_with_fn `view::zip_with`\endlink</DT>
   <DD>Given *N* ranges and a *N*-ary function, return a new range where *M*<SUP>th</SUP> element is the result of calling the function on the *M*<SUP>th</SUP> elements of all *N* ranges.</DD>
+</DL>
+
+\section range-actions Range Actions
+
+--------------------------------------------
+
+Below is a list of the eager range combinators, or *actions*, that Range v3 provides, and a blurb about how each is intended to be used.
+
+<DL>
+<DT>\link ranges::v3::action::drop_fn `action::drop`\endlink</DT>
+  <DD>Removes the first `N` elements of the source range.</DD>
+<DT>\link ranges::v3::action::drop_while_fn `action::drop_while`\endlink</DT>
+  <DD>Removes the first elements of the source range that satisfy the unary predicate.</DD>
+<DT>`action::erase`</DT>
+  <DD>Removes all elements in the sub-range of the source (range version) or all elements after position.</DD>
+<DT>`action::insert`</DT>
+  <DD>Inserts all elements of the range into the source at position.</DD>
+<DT>\link ranges::v3::action::join_fn `action::join`\endlink</DT>
+  <DD>Flattens a range of ranges.</DD>
+<DT> `action::push_back`</DT>
+  <DD>Appends elements to the tail of the source.</DD>
+<DT>`action::push_front`</DT>
+  <DD>Appends elements before the head of the source.</DD>
+<DT>\link ranges::v3::action::remove_if_fn `action::remove_if`\endlink</DT>
+  <DD>Removes all elements from the source that satisfy the predicate.</DD>
+<DT>\link ranges::v3::action::shuffle_fn `action::shuffle`\endlink</DT>
+  <DD>Shuffles the source range.</DD>
+<DT>\link ranges::v3::action::slice_fn `action::slice`\endlink</DT>
+  <DD>Removes all elements from the source that are not part of the sub-range.</DD>
+<DT>\link ranges::v3::action::sort_fn `action::sort`\endlink</DT>
+  <DD>Sorts the source range (unstable).</DD>
+<DT>\link ranges::v3::action::split_fn `action::split`\endlink</DT>
+  <DD>Split a range into a sequence of subranges using a delimiter (a value, a sequence of values, a predicate, or a binary function returning a `pair<bool, N>`).</DD>
+<DT>\link ranges::v3::action::stable_sort_fn `action::stable_sort`\endlink</DT>
+  <DD>Sorts the source range (stable).</DD>
+<DT>\link ranges::v3::action::stride_fn `action::stride`\endlink</DT>
+  <DD>Removes all elements whose position does not match the stride.</DD>
+<DT>\link ranges::v3::action::take_fn `action::take`\endlink</DT>
+  <DD>Keeps the first `N`-th elements of the range, removes the rest.</DD>
+<DT>\link ranges::v3::action::take_while_fn `action::take_while`\endlink</DT>
+  <DD>Keeps the first elements that satisfy the predicate, removes the rest.</DD>
+<DT>\link ranges::v3::action::transform_fn `action::transform`\endlink</DT>
+  <DD>Replaces elements of the source with the result of the unary function.</DD>
+<DT>`action::unique`</DT>
+  <DD>Removes adjacent elements of the source that compare equal. If the source is sorted, removes all duplicate elements.</DD>
 </DL>
